@@ -17,9 +17,9 @@ endif()
 find_package(Open3D REQUIRED)
 include_directories(${Open3D_INCLUDE_DIRS})
 
-add_executable(LiDARImageToPointcloud LiDARImageToPointcloud.cpp)
-add_executable(PointcloudToLidarImage PointcloudToLidarImage.cpp)
-add_executable(ImageIntegrate ImageIntegrate.cpp)
+add_executable(LiDARImageToPointcloud src/LiDARImageToPointcloud.cpp)
+add_executable(PointcloudToLidarImage src/PointcloudToLidarImage.cpp)
+add_executable(ImageIntegrate src/ImageIntegrate.cpp)
 
 target_link_libraries(LiDARImageToPointcloud ${Open3D_LIBRARIES})
 target_link_libraries(PointcloudToLidarImage ${Open3D_LIBRARIES})
