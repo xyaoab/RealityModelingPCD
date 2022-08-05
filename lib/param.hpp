@@ -44,6 +44,7 @@ public:
       if (std::string::npos != index) {
         std::string key = line.substr(0, index);
         std::string value = line.substr(index + 1, line.length());
+        std::cout<<"inserted key is "<<ptype::value_type(key, value).first << ptype::value_type(key, value).second<<std::endl;
         params.insert(ptype::value_type(key, value));
       }
     }
@@ -109,6 +110,20 @@ template <>
 double parameter::get(std::string key) {
   check_key(key);
   return get<double>(key, 0.0);
+}
+
+template <>
+std::string parameter::get(std::string key, std::string value) {
+  if (!contains(key)) {
+    return value;
+  }
+  return params[key];
+}
+
+template <>
+std::string parameter::get(std::string key) {
+  check_key(key);
+  return get<std::string>(key, "None");
 }
 
 } // namespace param

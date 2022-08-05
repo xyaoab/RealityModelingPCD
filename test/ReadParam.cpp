@@ -1,5 +1,8 @@
 #include "../lib/param.hpp"
 #include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string>
 
 int main() {
   std::string filename = "/home/abby/project/RealityModelingPCD/test/input.cfg";
@@ -10,21 +13,22 @@ int main() {
   }
 
   std::cout << "Read existing values" << std::endl;
-  std::cout << "Reading bool named \"bool\": " << param.get<bool>("bool") << std::endl;
-  std::cout << "Reading int named \"int\": " << param.get<int>("int") << std::endl;
-  std::cout << "Reading double named \"double\": " << param.get<double>("double") << std::endl;
+  std::cout << "Reading dataOutDir: " << param.get<std::string>("dataOutDir") << std::endl;
+  std::cout << "Reading dataInDir: " << param.get<std::string>("dataInDir") << std::endl;
+  std::cout << "Reading submapBoundaryOut: " << param.get<std::string>("submapBoundaryOut") << std::endl;
+  std::cout << "Reading pointcloudIn: " << param.get<std::string>("pointcloudIn") << std::endl;
+
+  std::cout << "Reading submapSizeX: " << param.get<double>("submapSizeX") << std::endl;
+  std::cout << "Reading submapSizeY: " << param.get<double>("submapSizeY") << std::endl;
+  std::cout << "Reading submapSizeZ: " << param.get<double>("submapSizeZ") << std::endl;
+  std::cout << "Reading submapMargin: " << param.get<double>("submapMargin") << std::endl;
+  std::cout << "Reading boundaryMinX: " << param.get<double>("boundaryMinX") << std::endl;
+  std::cout << "Reading boundaryMinY: " << param.get<double>("boundaryMinY") << std::endl;
+  std::cout << "Reading boundaryMinZ: " << param.get<double>("boundaryMinZ") << std::endl;
+  std::cout << "Reading boundaryMaxX: " << param.get<double>("boundaryMaxX") << std::endl;
+  std::cout << "Reading boundaryMaxY: " << param.get<double>("boundaryMaxY") << std::endl;
+  std::cout << "Reading boundaryMaxZ: " << param.get<double>("boundaryMaxZ") << std::endl;
+  
   std::cout << std::endl;
 
-  std::cout << "Read non-existing values" << std::endl;
-  std::cout << "Reading bool named \"bool-non-exsiting\": " << param.get<bool>("bool-non-exsiting", false) << std::endl;
-  std::cout << "Reading int named \"int-non-exsiting\": " << param.get<int>("int-non-exsiting", 6789) << std::endl;
-  std::cout << "Reading double named \"double-non-exsiting\": " << param.get<double>("double-non-exsiting", 6.789) << std::endl;
-  std::cout << std::endl;
-
-  // Check for non-exisiting file
-  std::string non_existing_filename = "input_non_existing.cfg";
-  param::parameter param2(non_existing_filename);
-  if (!param2) {
-    std::cerr << "Error" << std::endl;
-  }
 }
