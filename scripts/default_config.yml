@@ -1,0 +1,7 @@
+name: Default reconstruction system config
+device: CUDA:0
+path_dataset: ''
+voxel_size: 0.058
+block_resolution: 8
+sdf_trunc_multiplier: 3
+block_count: 40000

@@ -35,7 +35,7 @@ def integrate(range_names, poses, config):
     trunc = config.voxel_size * trunc_multiplier
 
     vbg = o3d.t.geometry.VoxelBlockGrid(
-        ('tsdf', 'weight', 'normals'), (o3c.Dtype.Float32, o3c.Dtype.Float32, o3c.Dtype.Float32), ((1), (1), (3)),
+        ('tsdf', 'weight'), (o3c.Dtype.Float32, o3c.Dtype.Float32), ((1), (1)),
         config.voxel_size, config.block_resolution, config.block_count,
         o3c.Device(config.device))
 
@@ -46,12 +46,14 @@ def integrate(range_names, poses, config):
 
         pcd_in_map = load_ply_as_pcd_withnormals(fname).to(o3c.Device(config.device))
 
+        # o3d.visualization.draw_geometries([pcd_in_map.to_legacy()],point_show_normal=True)
+
         sensor_xyz = poses[i]
         sensor_xyz = o3d.core.Tensor(sensor_xyz) \
                     .to(o3c.Device(config.device), o3d.core.Dtype.Float32)
 
         # Some legacy-tensor transformations
-        print(sensor_xyz[0], sensor_xyz[1], sensor_xyz[2])
+
         frustum_block_coords, block_pcd_coords, block_pcd_normals = vbg.compute_unique_block_coordinates(
             pcd_in_map, sensor_xyz,
             config.step_size,

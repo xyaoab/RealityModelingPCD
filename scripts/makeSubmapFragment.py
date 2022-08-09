@@ -11,13 +11,14 @@ python makeSubmapFragment.py --root_dir /home/abby/Data/CMU_lidar_indoor --index
 
 
 ## flip normal to direction facing (sensor pose 0,0,0)
-def compute_normal(pcd_np, _max_nn=40, _radius=0.1):
+def compute_normal(pcd_np, _max_nn=60, _radius=0.1):
 	pcd_obj = o3d.t.geometry.PointCloud(
             o3c.Tensor(np.zeros((pcd_np.shape[0], 3), dtype=np.float32)))
 	pcd_obj.point["positions"] = pcd_np
-	pcd_obj.estimate_normals(max_nn=_max_nn, radius=_radius)
-	flip_mask = (pcd_obj.point["normals"].mul(-1 * pcd_obj.point["positions"] ).sum(1) <0 )
+	pcd_obj.estimate_normals( max_nn=_max_nn, radius=_radius)
+	flip_mask = (pcd_obj.point["normals"].mul(pcd_obj.point["positions"] ).sum(1) <0 )
 	pcd_obj.point["normals"][flip_mask] *= -1
+	o3d.visualization.draw_geometries([pcd_obj.to_legacy()],point_show_normal=True)
 	return pcd_obj.point["normals"].numpy()
 
 
@@ -52,7 +53,7 @@ if __name__=="__main__":
 
 
 	xyz_in_map = pcd_in[:, :3]
-	# normal_in_map = compute_normal(xyz_in_map)
+	normal_in_map = compute_normal(xyz_in_map)
 
 	sensor_xyz_in_map = pcd_in[:, 3:6]
 	accuracy_in = pcd_in[:, -1]
@@ -80,7 +81,10 @@ if __name__=="__main__":
 
 		current_sensor_xyz_in_map = sensor_xyz_in_map[start_index:end_index] 
 		current_xyz_in_map = xyz_in_map[start_index:end_index] # (n,3)
-		current_normal_in_map = compute_normal(current_xyz_in_map)
+		current_normal_in_map = normal_in_map[start_index:end_index]
+		# #
+		# 
+		# current_normal_in_map = compute_normal(current_xyz_in_map)
 		# print("\n Normal computed \n")
 		current_accuracy_in = accuracy_in[start_index:end_index] 
 

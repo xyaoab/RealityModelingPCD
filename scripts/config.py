@@ -22,18 +22,6 @@ class ConfigParser(configargparse.ArgParser):
         input_parser.add(
             '--path_dataset', type=str,
             help='Path to the dataset folder. It should contain a folder with depth and a folder with color images.')
-        input_parser.add(
-            '--depth_folder', type=str,
-            help='Path that stores depth images.')
-        input_parser.add(
-            '--depth_min', type=float,
-            help='Min clipping distance (in meter) for input depth data.')
-        input_parser.add(
-            '--depth_max', type=float,
-            help='Max clipping distance (in meter) for input depth data.')
-        input_parser.add(
-            '--depth_scale', type=float,
-            help='Scale factor to convert raw input depth data to meters.')
 
         integration_parser = self.add_argument_group('integration')
         integration_parser.add(
@@ -54,15 +42,6 @@ class ConfigParser(configargparse.ArgParser):
         integration_parser.add(
             '--tangential_step_size', type=int,
             help='Ray marching tangential plane step size.')
-
-        registration_parser = self.add_argument_group('registration')
-        registration_parser.add(
-            '--registration_loop_interval', type=int,
-            help='Intervals to check loop closures between point clouds.')
-        registration_parser.add(
-            '--registration_loop_weight', type=float,
-            help='Weight of loop closure edges when optimizing pose graphs for registration.')
-        # yapf:enable
 
     def get_config(self):
         config = self.parse_args()
