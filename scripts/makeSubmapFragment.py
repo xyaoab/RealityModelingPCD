@@ -25,7 +25,7 @@ def compute_normal(pcd_np, _max_nn=60, _radius=0.1):
 ## all in map frame
 if __name__=="__main__":
 	parser = argparse.ArgumentParser(description='Make submap into fragments based on sensor position')
-	parser.add_argument('--root_dir', type=str, default='/home/abby/Data/CMU_lidar_indoor',
+	parser.add_argument('--root_dir', type=str,
                     help='Base dir for dataset')
 	parser.add_argument('--index', type=int, default=1,
 				help='Submap index')
