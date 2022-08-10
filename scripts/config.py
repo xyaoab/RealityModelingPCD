@@ -21,7 +21,7 @@ class ConfigParser(configargparse.ArgParser):
         input_parser = self.add_argument_group('input')
         input_parser.add(
             '--path_dataset', type=str,
-            help='Path to the dataset folder. It should contain a folder with depth and a folder with color images.')
+            help='Path to the dataset folder. It should contain a folder with pcd and a folder with sensor pose.')
 
         integration_parser = self.add_argument_group('integration')
         integration_parser.add(
@@ -38,7 +38,7 @@ class ConfigParser(configargparse.ArgParser):
             help='Pre-allocated voxel block count for volumetric integration.')
         integration_parser.add(
             '--step_size', type=int,
-            help='Ray marching step size.')
+            help='Ray marching step size along the ray.')
         integration_parser.add(
             '--tangential_step_size', type=int,
             help='Ray marching tangential plane step size.')

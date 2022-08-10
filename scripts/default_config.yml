@@ -1,7 +1,9 @@
-name: Default reconstruction system config
+name: Default raymarching reconstruction system config
 device: CUDA:0
 path_dataset: ''
 voxel_size: 0.058
-block_resolution: 8
+block_resolution: 1
 sdf_trunc_multiplier: 3
+tangential_step_size: 4
+step_size: 6
 block_count: 40000

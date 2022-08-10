@@ -6,7 +6,7 @@ import os
 from tqdm import tqdm
 
 '''
-python makeSubmapFragment.py --root_dir /home/abby/Data/CMU_lidar_indoor --index 6
+python makeSubmapFragment.py --root_dir /media/abby/USB/Data/CMU_lidar_indoor --index 6
 '''
 
 

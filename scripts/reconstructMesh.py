@@ -1,32 +1,20 @@
-import os, sys
+import os
 import time
+import glob
 
 import numpy as np
 import open3d as o3d
 import open3d.core as o3c
 from tqdm import tqdm
-import glob
 
 from config import ConfigParser
+from utility import load_ply_as_pcd_withnormals,tensor_count_nonzero
 
+'''
+Example:
+python scripts/reconstructMesh.py  --path_dataset /media/abby/USB/Data/CMU_lidar_indoor/submaps_out/7/ --voxel_size 0.02  --block_resolution 1  --sdf_trunc_multiplier 12  --step_size 6 --tangential_step_size 3 --device CUDA:0
+'''
 
-def load_ply_as_pcd_withnormals(fname):
-    ply_pcd = o3d.io.read_point_cloud(fname)
-    points = np.asarray(ply_pcd.points, dtype=np.float32)
-    normals = np.asarray(ply_pcd.normals, dtype=np.float32)
-    pcd_obj = o3d.t.geometry.PointCloud(
-            o3c.Tensor(np.zeros((points.shape[0], 3), dtype=np.float32)))
-    
-    pcd_obj.point["normals"] = normals
-    pcd_obj.point["positions"] = points
-    return pcd_obj
-
-
-def tensor_count_nonzero(tensor, state):
-
-    tmp = (tensor.to(o3c.Dtype.Float32).sum())
-    # tmp /= tensor.shape[0]
-    print("[{}] Out of {} tensor {:4f}".format(state, tensor.shape[0], tmp.cpu().numpy()))
 
 
 def integrate(range_names, poses, config):
@@ -43,16 +31,16 @@ def integrate(range_names, poses, config):
     start = time.time()
     threshold = 0.8
     for i, fname in tqdm(enumerate(range_names)):
-
-        pcd_in_map = load_ply_as_pcd_withnormals(fname).to(o3c.Device(config.device))
-
-        # o3d.visualization.draw_geometries([pcd_in_map.to_legacy()],point_show_normal=True)
-
-        sensor_xyz = poses[i]
-        sensor_xyz = o3d.core.Tensor(sensor_xyz) \
+        
+        # Input pcd & pose at each timestamp
+        pcd_in_map = o3d.t.io.read_point_cloud(fname).to(o3c.Device(config.device))
+        
+        #load_ply_as_pcd_withnormals(fname).to(o3c.Device(config.device))
+        if config.visualize:
+            o3d.visualization.draw_geometries([pcd_in_map.to_legacy()], point_show_normal=True)
+    
+        sensor_xyz = o3d.core.Tensor(poses[i]) \
                     .to(o3c.Device(config.device), o3d.core.Dtype.Float32)
-
-        # Some legacy-tensor transformations
 
         frustum_block_coords, block_pcd_coords, block_pcd_normals = vbg.compute_unique_block_coordinates(
             pcd_in_map, sensor_xyz,
@@ -65,9 +53,9 @@ def integrate(range_names, poses, config):
         vbg.hashmap().activate(frustum_block_coords)
 
         # Find buf indices in the underlying engine
-        buf_indices, masks = vbg.hashmap().find(frustum_block_coords)
+        buf_indices, _ = vbg.hashmap().find(frustum_block_coords)
 
-        voxel_coords, voxel_indices = vbg.voxel_coordinates_and_flattened_indices(
+        voxel_coords, voxel_indices = vbg.voxel_coordinates_and_flattened_indices( \
             buf_indices)
         
 
@@ -75,33 +63,27 @@ def integrate(range_names, poses, config):
         pcd_coords_voxel = np.repeat(block_pcd_coords.cpu().numpy(), resolution3, axis=0)
         pcd_normals_voxel =  np.repeat(block_pcd_normals.cpu().numpy(), resolution3, axis=0)
 
-        pcd_coords_voxel = o3d.core.Tensor(pcd_coords_voxel) \
+        xyz_readings = o3d.core.Tensor(pcd_coords_voxel) \
                             .to(o3c.Device(config.device), o3d.core.Dtype.Float32)
-        pcd_normals_voxel = o3d.core.Tensor(pcd_normals_voxel ) \
+        xyz_normals  = o3d.core.Tensor(pcd_normals_voxel ) \
                             .to(o3c.Device(config.device), o3d.core.Dtype.Float32)
-        assert len(pcd_coords_voxel) == len(voxel_coords)    
-
-        # Now project them to the depth and find association
-        # (3, N) -> (2, N)
+        assert len(pcd_coords_voxel) == len(voxel_coords), \
+                "check assoication between voxels and 3D points"    
 
         xyz_voxels = voxel_coords.to(o3d.core.Dtype.Float32)
 
-        xyz_readings = pcd_coords_voxel
-        xyz_normals = pcd_normals_voxel
-
         xyz_delta = xyz_readings - xyz_voxels
         xyz_delta_norm = xyz_delta.mul(xyz_delta).sum(1).sqrt()
-
-
+        # SDF is signed depending on normal direction
+        # inside vs. outside surface -> sdf <0 vs. sdf>0
         angle_delta_normal = xyz_normals.mul(xyz_delta).sum(1)     
-
-        # flip normal direction
-        xyz_dot_sign = o3c.Tensor.ones(xyz_delta.shape[0], dtype = o3c.Dtype.Float32).to(o3c.Device(config.device))
-
+        xyz_dot_sign = o3c.Tensor.ones(xyz_delta.shape[0],\
+                        dtype = o3c.Dtype.Float32).to(o3c.Device(config.device))
         xyz_dot_sign[angle_delta_normal>0] *= -1
 
-        sdf = xyz_dot_sign * xyz_delta_norm # xyz_dot / xyz_readings_norm 
-        mask_inlier =  o3c.Tensor.ones(sdf.shape, dtype = o3c.Dtype.Bool).to(o3c.Device(config.device))
+        sdf = xyz_dot_sign * xyz_delta_norm
+        mask_inlier =  o3c.Tensor.ones(sdf.shape, dtype = o3c.Dtype.Bool)\
+                        .to(o3c.Device(config.device))
 
         sdf[sdf <= -trunc] = -trunc
         sdf[sdf >= trunc] = trunc
@@ -116,40 +98,49 @@ def integrate(range_names, poses, config):
 
         wp = w + 1
 
+        # Init all weight to -1
         if i == 0:
-            weight = o3d.core.Tensor.ones(weight.shape, dtype=o3c.Dtype.Float32).to(o3c.Device(config.device))
+            weight = o3d.core.Tensor.ones(weight.shape, dtype=o3c.Dtype.Float32)\
+                    .to(o3c.Device(config.device))
             weight *= -1
 
         
         update_delta = (tsdf[valid_voxel_indices] - sdf[mask_inlier]).abs()
         weight_mask = (weight[valid_voxel_indices]<0)
-    
-        # for reset case 1
+        
+        # TSDF Updates based on difference between observation and belief
+        # Case 1: reset to weight=1, belief=observation
         bool_mask_base = (update_delta >= threshold)
         # tensor_count_nonzero(bool_mask_base, 'base')
 
-        bool_mask_reset = bool_mask_base.logical_and(sdf[mask_inlier].abs() <= tsdf[valid_voxel_indices].abs())
+        bool_mask_reset = bool_mask_base.logical_and(\
+                        sdf[mask_inlier].abs() <= tsdf[valid_voxel_indices].abs())
         bool_mask_reset = weight_mask.logical_or(bool_mask_reset)
         bool_mask_reset = bool_mask_reset.to(o3d.core.Dtype.Bool).reshape((-1,))
         tensor_count_nonzero(bool_mask_reset, 'reset')
 
-        # for skipping case 2
-        bool_mask_skip = bool_mask_base.logical_and(sdf[mask_inlier].abs() > tsdf[valid_voxel_indices].abs())
+        # Case 2: skip updates, keeping belief unaffected
+        bool_mask_skip = bool_mask_base.logical_and(\
+                        sdf[mask_inlier].abs() > tsdf[valid_voxel_indices].abs())
         bool_mask_skip = bool_mask_skip.to(o3d.core.Dtype.Bool).reshape((-1,))
         tensor_count_nonzero(bool_mask_skip , 'skip')
 
-        # for filtering case 3
-        bool_mask_filter = ((bool_mask_reset.logical_or(bool_mask_skip)) == False).to(o3d.core.Dtype.Bool).reshape((-1,))
+        # Case 3: filter based on weighted average of belief and observations
+        bool_mask_filter = ((bool_mask_reset.logical_or(bool_mask_skip)) == False)\
+                                .to(o3d.core.Dtype.Bool).reshape((-1,))
         tensor_count_nonzero(bool_mask_filter , 'filter ')
 
+        # Case 1: reset
         tsdf[valid_voxel_indices[bool_mask_reset] ] = sdf[mask_inlier][bool_mask_reset]
-        weight[valid_voxel_indices[bool_mask_reset]] = 1 # -=1 #/=2 # = 1
+        weight[valid_voxel_indices[bool_mask_reset]] = 1
 
+        # Case 3: filter
         tsdf[valid_voxel_indices[bool_mask_filter]] \
             = (tsdf[valid_voxel_indices[bool_mask_filter]]  * w[bool_mask_filter]  +
                sdf[mask_inlier][bool_mask_filter]) / wp[bool_mask_filter] 
         weight[valid_voxel_indices[bool_mask_filter]] = wp[bool_mask_filter]
 
+        # Prune voxels with too less weights
         if i % 50 == 49:
             o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Debug)
             vbg.prune(threshold=1, percentage=0.99)
@@ -175,7 +166,6 @@ if __name__ == '__main__':
                         default='CPU:0', #'CUDA:0',
                         choices=['CUDA:0', 'CPU:0'])
     parser.add_argument('--visualize', action='store_true')
-    parser.add_argument('--raymarching', action='store_true')
     config = parser.get_config()
     print("Running on: ", config.device)
 
@@ -203,7 +193,7 @@ if __name__ == '__main__':
 
     vbg = integrate(range_names[:], poses, config)
     vbg.save(path_vbg)
-    # print("mesh", vbg.extract_triangle_mesh(0).shape)
+
     mesh = vbg.extract_triangle_mesh(0).to_legacy()
     o3d.visualization.draw([mesh])
     mesh.compute_vertex_normals()
