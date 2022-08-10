@@ -42,13 +42,16 @@ def integrate(range_names, poses, config):
         sensor_xyz = o3d.core.Tensor(poses[i]) \
                     .to(o3c.Device(config.device), o3d.core.Dtype.Float32)
 
-        frustum_block_coords, block_pcd_coords, block_pcd_normals = vbg.compute_unique_block_coordinates(
+        frustum_block_coords, block_pcd_index = vbg.compute_unique_block_coordinates(
             pcd_in_map, sensor_xyz,
             config.step_size,
             config.tangential_step_size, trunc_multiplier)
 
+        block_pcd_index = block_pcd_index.reshape([-1,])
+        block_pcd_coords =pcd_in_map.point['positions'][block_pcd_index]
+        block_pcd_normals = pcd_in_map.point['normals'][block_pcd_index]
+        block_pcd_accuracy = pcd_in_map.point['intensity'][block_pcd_index]
 
-    
         # Activate them in the underlying hash map (may have been inserted)
         vbg.hashmap().activate(frustum_block_coords)
 
@@ -62,10 +65,13 @@ def integrate(range_names, poses, config):
         resolution3 = config.block_resolution * config.block_resolution * config.block_resolution
         pcd_coords_voxel = np.repeat(block_pcd_coords.cpu().numpy(), resolution3, axis=0)
         pcd_normals_voxel =  np.repeat(block_pcd_normals.cpu().numpy(), resolution3, axis=0)
+        pcd_accuracy_voxel =  np.repeat(block_pcd_accuracy.cpu().numpy(), resolution3, axis=0)
 
         xyz_readings = o3d.core.Tensor(pcd_coords_voxel) \
                             .to(o3c.Device(config.device), o3d.core.Dtype.Float32)
-        xyz_normals  = o3d.core.Tensor(pcd_normals_voxel ) \
+        xyz_normals  = o3d.core.Tensor(pcd_normals_voxel) \
+                            .to(o3c.Device(config.device), o3d.core.Dtype.Float32)
+        xyz_accuracy  = o3d.core.Tensor(pcd_accuracy_voxel) \
                             .to(o3c.Device(config.device), o3d.core.Dtype.Float32)
         assert len(pcd_coords_voxel) == len(voxel_coords), \
                 "check assoication between voxels and 3D points"    
@@ -79,11 +85,12 @@ def integrate(range_names, poses, config):
         angle_delta_normal = xyz_normals.mul(xyz_delta).sum(1)     
         xyz_dot_sign = o3c.Tensor.ones(xyz_delta.shape[0],\
                         dtype = o3c.Dtype.Float32).to(o3c.Device(config.device))
+
         xyz_dot_sign[angle_delta_normal>0] *= -1
 
         sdf = xyz_dot_sign * xyz_delta_norm
-        mask_inlier =  o3c.Tensor.ones(sdf.shape, dtype = o3c.Dtype.Bool)\
-                        .to(o3c.Device(config.device))
+        # mask_inlier =  o3c.Tensor.ones(sdf.shape, dtype = o3c.Dtype.Bool)\
+        #                 .to(o3c.Device(config.device))
 
         sdf[sdf <= -trunc] = -trunc
         sdf[sdf >= trunc] = trunc
@@ -93,10 +100,10 @@ def integrate(range_names, poses, config):
         tsdf = vbg.attribute('tsdf').reshape((-1, 1))
 
 
-        valid_voxel_indices = voxel_indices[mask_inlier]
+        valid_voxel_indices = voxel_indices
         w = weight[valid_voxel_indices]
 
-        wp = w + 1
+        wp = w + xyz_accuracy
 
         # Init all weight to -1
         if i == 0:
@@ -105,23 +112,22 @@ def integrate(range_names, poses, config):
             weight *= -1
 
         
-        update_delta = (tsdf[valid_voxel_indices] - sdf[mask_inlier]).abs()
+        update_delta = (tsdf[valid_voxel_indices] - sdf).abs()
         weight_mask = (weight[valid_voxel_indices]<0)
         
         # TSDF Updates based on difference between observation and belief
         # Case 1: reset to weight=1, belief=observation
         bool_mask_base = (update_delta >= threshold)
-        # tensor_count_nonzero(bool_mask_base, 'base')
 
         bool_mask_reset = bool_mask_base.logical_and(\
-                        sdf[mask_inlier].abs() <= tsdf[valid_voxel_indices].abs())
+                        sdf.abs() <= tsdf[valid_voxel_indices].abs())
         bool_mask_reset = weight_mask.logical_or(bool_mask_reset)
         bool_mask_reset = bool_mask_reset.to(o3d.core.Dtype.Bool).reshape((-1,))
         tensor_count_nonzero(bool_mask_reset, 'reset')
 
         # Case 2: skip updates, keeping belief unaffected
         bool_mask_skip = bool_mask_base.logical_and(\
-                        sdf[mask_inlier].abs() > tsdf[valid_voxel_indices].abs())
+                        sdf.abs() > tsdf[valid_voxel_indices].abs())
         bool_mask_skip = bool_mask_skip.to(o3d.core.Dtype.Bool).reshape((-1,))
         tensor_count_nonzero(bool_mask_skip , 'skip')
 
@@ -131,13 +137,13 @@ def integrate(range_names, poses, config):
         tensor_count_nonzero(bool_mask_filter , 'filter ')
 
         # Case 1: reset
-        tsdf[valid_voxel_indices[bool_mask_reset] ] = sdf[mask_inlier][bool_mask_reset]
-        weight[valid_voxel_indices[bool_mask_reset]] = 1
+        tsdf[valid_voxel_indices[bool_mask_reset] ] = sdf[bool_mask_reset]
+        weight[valid_voxel_indices[bool_mask_reset]] = xyz_accuracy[bool_mask_reset] #1
 
         # Case 3: filter
         tsdf[valid_voxel_indices[bool_mask_filter]] \
             = (tsdf[valid_voxel_indices[bool_mask_filter]]  * w[bool_mask_filter]  +
-               sdf[mask_inlier][bool_mask_filter]) / wp[bool_mask_filter] 
+               sdf[bool_mask_filter]) / wp[bool_mask_filter] 
         weight[valid_voxel_indices[bool_mask_filter]] = wp[bool_mask_filter]
 
         # Prune voxels with too less weights
