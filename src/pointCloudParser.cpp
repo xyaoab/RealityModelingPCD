@@ -28,7 +28,7 @@ bool increProc = false;
 int main(int argc, char** argv)
 {
   printf("\nRead parameters...\n");
-  string filename = "/home/abby/project/RealityModelingPCD/test/input.cfg";
+  string filename = "../config/input.cfg";
   param::parameter param(filename);
 
   if (!param) {
