@@ -27,8 +27,8 @@ bool increProc = false;
 
 int main(int argc, char** argv)
 {
-  printf("\nRead parameters...\n");
-  string filename = "../config/input.cfg";
+  printf("\n[PointcloudParser]Read parameters...\n");
+  string filename = "../config/submap.cfg";
   param::parameter param(filename);
 
   if (!param) {
