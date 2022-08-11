@@ -16,11 +16,14 @@ string meshOut = "mesh.obj";
 int main(int argc, char** argv)
 {
  
+  printf("\n[MeshMerger]Read parameters...\n");
+  string filename = "../config/mesh.cfg";
+  param::parameter param(filename);
 
-  nhPrivate.getParam("dataInDir", dataInDir);
-  nhPrivate.getParam("dataOutDir", dataOutDir);
-  nhPrivate.getParam("submapBoundaryIn", submapBoundaryIn);
-  nhPrivate.getParam("meshOut", meshOut);
+  dataInDir = param.get<string>("dataInDir");
+  dataOutDir = param.get<string>("dataOutDir");
+  submapBoundaryIn = param.get<string>("submapBoundaryIn");
+  meshOut = param.get<string>("meshOut");
 
   string submapBoundaryInDir = dataInDir + "/" + submapBoundaryIn;
   FILE *submapBoundaryInFile = fopen(submapBoundaryInDir.c_str(), "r");
