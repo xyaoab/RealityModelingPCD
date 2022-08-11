@@ -19,12 +19,7 @@ include_directories(${Open3D_INCLUDE_DIRS})
 
 add_executable(ReadParam test/ReadParam.cpp)
 add_executable(pointCloudParser src/pointCloudParser.cpp)
-add_executable(LiDARImageToPointcloud src/LiDARImageToPointcloud.cpp)
-add_executable(PointcloudToLidarImage src/PointcloudToLidarImage.cpp)
-add_executable(ImageIntegrate src/ImageIntegrate.cpp)
+add_executable(meshMerger src/meshMerger.cpp)
 
-target_link_libraries(LiDARImageToPointcloud ${Open3D_LIBRARIES})
-target_link_libraries(PointcloudToLidarImage ${Open3D_LIBRARIES})
-target_link_libraries(ImageIntegrate ${Open3D_LIBRARIES})
 
 
